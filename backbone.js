@@ -937,26 +937,53 @@
     // not `change`, `submit`, and `reset` in Internet Explorer.
     delegateEvents : function(events) {
       if (!(events || (events = this.events))) return;
+      // TODO: what does this do?
       if (_.isFunction(events)) events = events.call(this);
       this.undelegateEvents();
-      for (var key in events) {
-        var method = this[events[key]];
-        if (!method) throw new Error('Event "' + events[key] + '" does not exist');
-        var match = key.match(eventSplitter);
-        var eventName = match[1], selector = match[2];
-        method = _.bind(method, this);
-        eventName += '.delegateEvents' + this.cid;
-        if (selector === '') {
-          $(this.el).bind(eventName, method);
-        } else {
-          $(this.el).delegate(selector, eventName, method);
-        }
+
+      var viewSourceEvents = events['view'] || {},
+          modelSourceEvents = events['model'] || {},
+          collectionSourceEvents = events['collection'] || {};
+
+      _.each(viewSourceEvents, this.delegateViewEvent, this);
+      _.each(modelSourceEvents, this.delegateModelEvent, this);
+      _.each(collectionSourceEvents, this.delegateCollectionEvent, this);
+    },
+
+    delegateViewEvent : function(methodName, binding, events) {
+      var method = this[methodName];
+      // TODO: does this error message make sense?
+      if (!method) throw new Error('Event "' + methodName + '" does not exist');
+      var match = binding.match(eventSplitter);
+      var eventName = match[1], selector = match[2];
+      method = _.bind(method, this);
+      eventName += '.delegateEvents' + this.cid;
+      if (selector === '') {
+        $(this.el).bind(eventName, method);
+      } else {
+        $(this.el).delegate(selector, eventName, method);
       }
+    },
+
+    delegateModelEvent : function(methodName, eventName, events) {
+      var method = this[methodName];
+      // TODO: better error message
+      if (!method) throw new Error('Event "' + methodName + '" does not exist');
+      this.model.bind(eventName, method, this);
+    },
+
+    delegateCollectionEvent : function(methodName, eventName, events) {
+      var method = this[methodName];
+      // TODO: better error message
+      if (!method) throw new Error('Event "' + methodName + '" does not exist');
+      this.collection.bind(eventName, method, this);
     },
 
     // Clears all callbacks previously bound to the view with `delegateEvents`.
     undelegateEvents : function() {
       $(this.el).unbind('.delegateEvents' + this.cid);
+
+      // TODO: how to unbind model events made by *this* view
     },
 
     // Performs the initial configuration of a View with a set of options.

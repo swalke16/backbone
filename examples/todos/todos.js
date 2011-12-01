@@ -16,7 +16,7 @@ $(function(){
     defaults: function() {
       return {
         done:  false,
-        order: Todos.nextOrder()
+        order: 0
       };
     },
 
@@ -60,12 +60,13 @@ $(function(){
     // Todos are sorted by their original insertion order.
     comparator: function(todo) {
       return todo.get('order');
+    },
+
+    newModel: function(attrs) {
+      return this.create( _.extend(attrs, {order: this.nextOrder()}));
     }
 
   });
-
-  // Create our global collection of **Todos**.
-  window.Todos = new TodoList;
 
   // Todo Item View
   // --------------
@@ -79,18 +80,17 @@ $(function(){
     // Cache the template function for a single item.
     template: _.template($('#item-template').html()),
 
-    // The DOM events specific to an item.
     events: {
-      "click .check"              : "toggleDone",
-      "dblclick div.todo-text"    : "edit",
-      "click span.todo-destroy"   : "clear",
-      "keypress .todo-input"      : "updateOnEnter"
-    },
-
-    // The TodoView listens for changes to its model, re-rendering.
-    initialize: function() {
-      this.model.bind('change', this.render, this);
-      this.model.bind('destroy', this.remove, this);
+      view: {
+        "click .check"              : "toggleDone",
+        "dblclick div.todo-text"    : "edit",
+        "click span.todo-destroy"   : "clear",
+        "keypress .todo-input"      : "updateOnEnter"
+      },
+      model: {
+        "change"                    : "render",
+        "destroy"                   : "remove"
+      }
     },
 
     // Re-render the contents of the todo item.
@@ -158,9 +158,16 @@ $(function(){
 
     // Delegated events for creating new items, and clearing completed ones.
     events: {
-      "keypress #new-todo":  "createOnEnter",
-      "keyup #new-todo":     "showTooltip",
-      "click .todo-clear a": "clearCompleted"
+      view: {
+        "keypress #new-todo":  "createOnEnter",
+        "keyup #new-todo":     "showTooltip",
+        "click .todo-clear a": "clearCompleted"
+      },
+      collection: {
+        'add'                 : "addOne",
+        'reset'               : "addAll",
+        'all'                 : "render"
+      }
     },
 
     // At initialization we bind to the relevant events on the `Todos`
@@ -168,21 +175,16 @@ $(function(){
     // loading any preexisting todos that might be saved in *localStorage*.
     initialize: function() {
       this.input    = this.$("#new-todo");
-
-      Todos.bind('add',   this.addOne, this);
-      Todos.bind('reset', this.addAll, this);
-      Todos.bind('all',   this.render, this);
-
-      Todos.fetch();
+      this.collection.fetch();
     },
 
     // Re-rendering the App just means refreshing the statistics -- the rest
     // of the app doesn't change.
     render: function() {
       this.$('#todo-stats').html(this.statsTemplate({
-        total:      Todos.length,
-        done:       Todos.done().length,
-        remaining:  Todos.remaining().length
+        total:      this.collection.length,
+        done:       this.collection.done().length,
+        remaining:  this.collection.remaining().length
       }));
     },
 
@@ -195,7 +197,7 @@ $(function(){
 
     // Add all items in the **Todos** collection at once.
     addAll: function() {
-      Todos.each(this.addOne);
+      this.collection.each(this.addOne);
     },
 
     // If you hit return in the main input field, and there is text to save,
@@ -203,13 +205,13 @@ $(function(){
     createOnEnter: function(e) {
       var text = this.input.val();
       if (!text || e.keyCode != 13) return;
-      Todos.create({text: text});
+      this.collection.newModel({text: text});
       this.input.val('');
     },
 
     // Clear all done todo items, destroying their models.
     clearCompleted: function() {
-      _.each(Todos.done(), function(todo){ todo.destroy(); });
+      _.each(this.collection.done(), function(todo){ todo.destroy(); });
       return false;
     },
 
@@ -228,6 +230,6 @@ $(function(){
   });
 
   // Finally, we kick things off by creating the **App**.
-  window.App = new AppView;
+  window.App = new AppView({collection: new TodoList()});
 
 });
