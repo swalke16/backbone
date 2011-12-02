@@ -860,6 +860,37 @@
     }
   });
 
+  // TODO: write tests
+  // TODO: should presenter have the template?  I think so because it may conditionally decide what template to use.
+  // Backbone.Presenter
+  // ------------------
+
+  Backbone.Presenter = function(options){
+    this.model = options.model || {};
+    this.collection = options.collection || {};
+
+    // convert the current attributes from the model to flat properties for easy templating
+    _.extend(this, this.model.attributes || {});
+  }
+
+  _.extend(Backbone.Presenter.prototype, {
+    toHtml : function() {
+      return this.__template(this);
+    },
+
+    template : function(data) {},
+
+    __template : function(data) {
+      // if the template is a function, assume it will return html when passed the data
+      // otherwise asume it is a selector that identifies underscore template content, and compile it
+      if (!_.isFunction(this.template))
+        this.template = _.template($(this.template).html());
+
+      return (this.template(data));
+    }
+  });
+
+
   // Backbone.View
   // -------------
 
@@ -895,8 +926,16 @@
     // initialization logic.
     initialize : function(){},
 
+    // Presenter will construct a new instance of the presenter defined when creating
+    // the view passing the model and collection to it's constructor
+    presenter : function() {
+      // TODO: what should default presenterClass be?
+      // TODO: presenterClass is a terrible name for that property...
+      return new this.presenterClass({model: this.model, collection: this.collection});
+    },
+
     // **render** is the core function that your view should override, in order
-    // to populate its element (`this.el`), with the appropriate HTML. The
+    // to p)pulate its element (`this.el`), with the appropriate HTML. The
     // convention is for **render** to always return `this`.
     render : function() {
       return this;
@@ -1024,7 +1063,8 @@
 
   // Set up inheritance for the model, collection, and view.
   Backbone.Model.extend = Backbone.Collection.extend =
-    Backbone.Router.extend = Backbone.View.extend = extend;
+    Backbone.Router.extend = Backbone.View.extend =
+    Backbone.Presenter.extend = extend;
 
   // Map from CRUD to HTTP for our default `Backbone.sync` implementation.
   var methodMap = {

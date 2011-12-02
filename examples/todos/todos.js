@@ -15,6 +15,7 @@ $(function(){
     // Default attributes for a todo item.
     defaults: function() {
       return {
+        text:  '',
         done:  false,
         order: 0
       };
@@ -68,6 +69,33 @@ $(function(){
 
   });
 
+
+    //******
+    // TODO:
+    //    1: Add an option to auto add properties for form elements on initialize form element bindings?
+    //    2: Add concept of presenters.
+    //        - Presenter is a read-only representation of a model at a point in time, used for passing
+    //        - into a template for rendering purposes.
+    //
+    //        - Wrap a model, exposing attrs as simple properties attr(), attr(value)
+    //******
+  window.TodoPresenter = Backbone.Presenter.extend({
+    template      : '#item-template',
+    todo_class    : function() { return this.done ? 'done' : ''; },
+    checked_state : function() { return this.done ? 'checked="checked"' : ''; }
+  });
+
+  window.AppPresenter = Backbone.Presenter.extend({
+    template      : '#stats-template',
+    total         : function() { return this.collection.length; },
+    done          : function() { return this.collection.done().length; },
+    done_word     : function() { return this.done() == 1 ? 'item' : 'items' },
+    remaining     : function() { return this.collection.remaining().length; },
+    remaining_word: function() { return this.remaining() == 1 ? 'item' : 'items'; },
+  });
+
+
+
   // Todo Item View
   // --------------
 
@@ -77,15 +105,13 @@ $(function(){
     //... is a list tag.
     tagName:  "li",
 
-    // Cache the template function for a single item.
-    template: _.template($('#item-template').html()),
-
     events: {
       view: {
         "click .check"              : "toggleDone",
         "dblclick div.todo-text"    : "edit",
         "click span.todo-destroy"   : "clear",
-        "keypress .todo-input"      : "updateOnEnter"
+        "keypress .todo-input"      : "updateOnEnter",
+        "blur .todo-input"          : "close"
       },
       model: {
         "change"                    : "render",
@@ -93,20 +119,12 @@ $(function(){
       }
     },
 
+    presenterClass: TodoPresenter,
+
     // Re-render the contents of the todo item.
     render: function() {
-      $(this.el).html(this.template(this.model.toJSON()));
-      this.setText();
+      $(this.el).html(this.presenter().toHtml());
       return this;
-    },
-
-    // To avoid XSS (not that it would be harmful in this particular app),
-    // we use `jQuery.text` to set the contents of the todo item.
-    setText: function() {
-      var text = this.model.get('text');
-      this.$('.todo-text').text(text);
-      this.input = this.$('.todo-input');
-      this.input.bind('blur', _.bind(this.close, this)).val(text);
     },
 
     // Toggle the `"done"` state of the model.
@@ -117,23 +135,18 @@ $(function(){
     // Switch this view into `"editing"` mode, displaying the input field.
     edit: function() {
       $(this.el).addClass("editing");
-      this.input.focus();
+      this.$('.todo-input').focus();
     },
 
     // Close the `"editing"` mode, saving changes to the todo.
     close: function() {
-      this.model.save({text: this.input.val()});
+      this.model.save({text: this.$('.todo-input').val()});
       $(this.el).removeClass("editing");
     },
 
     // If you hit `enter`, we're through editing the item.
     updateOnEnter: function(e) {
       if (e.keyCode == 13) this.close();
-    },
-
-    // Remove this view from the DOM.
-    remove: function() {
-      $(this.el).remove();
     },
 
     // Remove the item, destroy the model.
@@ -148,13 +161,9 @@ $(function(){
 
   // Our overall **AppView** is the top-level piece of UI.
   window.AppView = Backbone.View.extend({
-
     // Instead of generating a new element, bind to the existing skeleton of
     // the App already present in the HTML.
     el: $("#todoapp"),
-
-    // Our template for the line of statistics at the bottom of the app.
-    statsTemplate: _.template($('#stats-template').html()),
 
     // Delegated events for creating new items, and clearing completed ones.
     events: {
@@ -170,6 +179,8 @@ $(function(){
       }
     },
 
+    presenterClass: AppPresenter,
+
     // At initialization we bind to the relevant events on the `Todos`
     // collection, when items are added or changed. Kick things off by
     // loading any preexisting todos that might be saved in *localStorage*.
@@ -181,11 +192,7 @@ $(function(){
     // Re-rendering the App just means refreshing the statistics -- the rest
     // of the app doesn't change.
     render: function() {
-      this.$('#todo-stats').html(this.statsTemplate({
-        total:      this.collection.length,
-        done:       this.collection.done().length,
-        remaining:  this.collection.remaining().length
-      }));
+      this.$('#todo-stats').html(this.presenter().toHtml());
     },
 
     // Add a single todo item to the list by creating a view for it, and
